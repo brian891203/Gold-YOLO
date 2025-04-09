@@ -129,6 +129,9 @@ class ComputeLoss:
         one_hot_label = F.one_hot(target_labels.long(), self.num_classes + 1)[..., :-1]
         loss_cls = self.varifocal_loss(pred_scores, target_scores, one_hot_label)
         
+        # 在此處添加 clamp 操作 --> 確保目標值在預期的範圍 [0, 1]
+        target_scores = torch.clamp(target_scores, 0.0, 1.0)
+
         # avoid devide zero error, devide by zero will cause loss to be inf or nan.
         # if target_scores_sum is 0, loss_cls equals to 0 alson
         try:
