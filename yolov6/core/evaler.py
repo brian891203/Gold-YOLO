@@ -90,8 +90,13 @@ class Evaler:
         Returns a dataloader for task val or speed.
         '''
         self.is_coco = self.data.get("is_coco", False)
+        # print("self.is_coco: ", self.is_coco)
+        print("=== check3.1 ===\n")
         self.ids = self.coco80_to_coco91_class() if self.is_coco else list(range(1000))
+
+        print("=== check3.2 ===\n")
         if task != 'train':
+            print("=== check3.2.1 ===\n")
             pad = 0.0 if task == 'speed' else 0.5
             eval_hyp = {
                     "test_load_size": self.test_load_size,
@@ -100,10 +105,13 @@ class Evaler:
             if self.force_no_pad:
                 pad = 0.0
             rect = not self.not_infer_on_rect
+            print("=== check3.2.2 ===\n")
+            # print("self.data[task]: ", self.data[task])
             dataloader = create_dataloader(self.data[task if task in ('train', 'val', 'test') else 'val'],
                                            self.img_size, self.batch_size, self.stride, hyp=eval_hyp, check_labels=True,
                                            pad=pad, rect=rect,
                                            data_dict=self.data, task=task)[0]
+            print("=== check3.2.3 ===\n")
         return dataloader
     
     def predict_model(self, model, dataloader, task):
@@ -140,7 +148,9 @@ class Evaler:
             
             # post-process
             t3 = time_sync()
+            # print("======= outputs", outputs)
             outputs = non_max_suppression(outputs, self.conf_thres, self.iou_thres, multi_label=True)
+            # print(f"Batch {i} NMS outputs:", outputs)
             self.speed_result[3] += time_sync() - t3  # post-process time
             self.speed_result[0] += len(outputs)
             
@@ -251,7 +261,12 @@ class Evaler:
         if not self.do_coco_metric and self.do_pr_metric:
             return self.pr_metric_result
         LOGGER.info(f'\nEvaluating mAP by pycocotools.')
+        # print("=============task: ", task)
+        # print("=============len(pred_results)", len(pred_results))
+        # print(pred_results)
+
         if task != 'speed' and len(pred_results):
+            print("=== check7 ===\n")
             if 'anno_path' in self.data:
                 anno_json = self.data['anno_path']
             else:
@@ -328,11 +343,15 @@ class Evaler:
                             r[i], f1[i], map50, map))
             cocoEval.summarize()
             map, map50 = cocoEval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
+            LOGGER.info(f"Final mAP@0.5: {map50:.3f}, mAP@0.5:0.95: {map:.3f}")
+            print(f"Final mAP@0.5: {map50:.3f}, mAP@0.5:0.95: {map:.3f}")
             # Return results
             model.float()  # for training
             if task != 'train':
                 LOGGER.info(f"Results saved to {self.save_dir}")
             return (map50, map)
+
+        print("=== check8 ===\n")
         return (0.0, 0.0)
     
     def eval_speed(self, task):

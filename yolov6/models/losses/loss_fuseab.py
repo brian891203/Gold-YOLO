@@ -127,11 +127,12 @@ class ComputeLoss:
         # cls loss
         target_labels = torch.where(fg_mask > 0, target_labels, torch.full_like(target_labels, self.num_classes))
         one_hot_label = F.one_hot(target_labels.long(), self.num_classes + 1)[..., :-1]
-        loss_cls = self.varifocal_loss(pred_scores, target_scores, one_hot_label)
-        
+
         # 在此處添加 clamp 操作 --> 確保目標值在預期的範圍 [0, 1]
         target_scores = torch.clamp(target_scores, 0.0, 1.0)
-
+        
+        loss_cls = self.varifocal_loss(pred_scores, target_scores, one_hot_label)
+        
         # avoid devide zero error, devide by zero will cause loss to be inf or nan.
         # if target_scores_sum is 0, loss_cls equals to 0 alson
         try:
@@ -187,7 +188,8 @@ class VarifocalLoss(nn.Module):
     
     def forward(self, pred_score, gt_score, label, alpha=0.75, gamma=2.0):
         weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
-        with torch.cuda.amp.autocast(enabled=False):
+        # with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(device_type='cuda', enabled=False):
             loss = (F.binary_cross_entropy(pred_score.float(), gt_score.float(), reduction='none') * weight).sum()
         
         return loss

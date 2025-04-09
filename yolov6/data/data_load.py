@@ -37,6 +37,7 @@ def create_dataloader(
             "WARNING: --rect is incompatible with DataLoader shuffle, setting shuffle=False"
         )
         shuffle = False
+    print("=== check3.2.2.1 ===\n")
     with torch_distributed_zero_first(rank):
         dataset = TrainValDataset(
             path,
@@ -53,7 +54,7 @@ def create_dataloader(
             data_dict=data_dict,
             task=task,
         )
-
+    print("=== check3.2.2.2 ===\n")
     batch_size = min(batch_size, len(dataset))
     workers = min(
         [
@@ -65,6 +66,7 @@ def create_dataloader(
     sampler = (
         None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
     )
+    print("=== check3.2.2.3 ===\n")
     return (
         TrainValDataLoader(
             dataset,
