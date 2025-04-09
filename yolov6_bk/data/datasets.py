@@ -268,11 +268,11 @@ class TrainValDataset(Dataset):
             with open(valid_img_record, "w") as f:
                 json.dump(cache_info, f)
 
-        # check and load anns
+        #check and load anns
         base_dir = osp.basename(img_dir)
         if base_dir != "":
             label_dir = osp.join(
-            osp.dirname(osp.dirname(img_dir)), "labels", osp.basename(img_dir)
+                osp.dirname(osp.dirname(img_dir)), "labels", osp.basename(img_dir)
             )
             assert osp.exists(label_dir), f"{label_dir} is an invalid directory path!"
         else:
@@ -282,6 +282,16 @@ class TrainValDataset(Dataset):
                 for subdir in dirs:
                     sub_dirs.append(subdir)
             assert "labels" in sub_dirs, f"Could not find a labels directory!"
+
+        ## following is added by me ##
+        # if self.task.lower() == "train":
+        #     label_subdir = "train"
+        # elif self.task.lower() == "val":
+        #     label_subdir = "val"
+        # else:
+        #     label_subdir = osp.basename(img_dir)
+        # label_dir = osp.join(osp.dirname(img_dir), "labels", label_subdir)
+        # assert osp.exists(label_dir), f"{label_dir} is an invalid directory path!"
 
 
         # Look for labels in the save relative dir that the images are in

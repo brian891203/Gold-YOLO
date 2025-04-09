@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from yolov6.assigners.anchor_generator import generate_anchors
 from yolov6.utils.general import dist2bbox, bbox2dist, xywh2xyxy, box_iou
 from yolov6.utils.figure_iou import IOUloss
+from yolov6.assigners.atss_assigner import ATSSAssigner
 from yolov6.assigners.tal_assigner import TaskAlignedAssigner
 
 
@@ -22,7 +23,7 @@ class ComputeLoss:
                  grid_cell_offset=0.5,
                  num_classes=80,
                  ori_img_size=640,
-                 warmup_epoch=0,
+                 warmup_epoch=4,
                  use_dfl=True,
                  reg_max=16,
                  iou_type='giou',
@@ -39,7 +40,8 @@ class ComputeLoss:
         self.ori_img_size = ori_img_size
         
         self.warmup_epoch = warmup_epoch
-        self.formal_assigner = TaskAlignedAssigner(topk=26, num_classes=self.num_classes, alpha=1.0, beta=6.0)
+        self.warmup_assigner = ATSSAssigner(9, num_classes=self.num_classes)
+        self.formal_assigner = TaskAlignedAssigner(topk=13, num_classes=self.num_classes, alpha=1.0, beta=6.0)
         
         self.use_dfl = use_dfl
         self.reg_max = reg_max
@@ -60,7 +62,7 @@ class ComputeLoss:
         feats, pred_scores, pred_distri = outputs
         anchors, anchor_points, n_anchors_list, stride_tensor = \
             generate_anchors(feats, self.fpn_strides, self.grid_cell_size, self.grid_cell_offset,
-                             device=feats[0].device, is_eval=False, mode='ab')
+                             device=feats[0].device)
         
         assert pred_scores.type() == pred_distri.type()
         gt_bboxes_scale = torch.full((1, 4), self.ori_img_size).type_as(pred_scores)
@@ -74,18 +76,27 @@ class ComputeLoss:
         
         # pboxes
         anchor_points_s = anchor_points / stride_tensor
-        pred_distri[..., :2] += anchor_points_s
-        pred_bboxes = xywh2xyxy(pred_distri)
+        pred_bboxes = self.bbox_decode(anchor_points_s, pred_distri)  # xyxy
         
         try:
-            target_labels, target_bboxes, target_scores, fg_mask = \
-                self.formal_assigner(
-                        pred_scores.detach(),
-                        pred_bboxes.detach() * stride_tensor,
-                        anchor_points,
-                        gt_labels,
-                        gt_bboxes,
-                        mask_gt)
+            if epoch_num < self.warmup_epoch:
+                target_labels, target_bboxes, target_scores, fg_mask = \
+                    self.warmup_assigner(
+                            anchors,
+                            n_anchors_list,
+                            gt_labels,
+                            gt_bboxes,
+                            mask_gt,
+                            pred_bboxes.detach() * stride_tensor)
+            else:
+                target_labels, target_bboxes, target_scores, fg_mask = \
+                    self.formal_assigner(
+                            pred_scores.detach(),
+                            pred_bboxes.detach() * stride_tensor,
+                            anchor_points,
+                            gt_labels,
+                            gt_bboxes,
+                            mask_gt)
         
         except RuntimeError:
             print(
@@ -95,23 +106,41 @@ class ComputeLoss:
             )
             torch.cuda.empty_cache()
             print("------------CPU Mode for This Batch-------------")
+            if epoch_num < self.warmup_epoch:
+                _anchors = anchors.cpu().float()
+                _n_anchors_list = n_anchors_list
+                _gt_labels = gt_labels.cpu().float()
+                _gt_bboxes = gt_bboxes.cpu().float()
+                _mask_gt = mask_gt.cpu().float()
+                _pred_bboxes = pred_bboxes.detach().cpu().float()
+                _stride_tensor = stride_tensor.cpu().float()
+                
+                target_labels, target_bboxes, target_scores, fg_mask = \
+                    self.warmup_assigner(
+                            _anchors,
+                            _n_anchors_list,
+                            _gt_labels,
+                            _gt_bboxes,
+                            _mask_gt,
+                            _pred_bboxes * _stride_tensor)
             
-            _pred_scores = pred_scores.detach().cpu().float()
-            _pred_bboxes = pred_bboxes.detach().cpu().float()
-            _anchor_points = anchor_points.cpu().float()
-            _gt_labels = gt_labels.cpu().float()
-            _gt_bboxes = gt_bboxes.cpu().float()
-            _mask_gt = mask_gt.cpu().float()
-            _stride_tensor = stride_tensor.cpu().float()
-            
-            target_labels, target_bboxes, target_scores, fg_mask = \
-                self.formal_assigner(
-                        _pred_scores,
-                        _pred_bboxes * _stride_tensor,
-                        _anchor_points,
-                        _gt_labels,
-                        _gt_bboxes,
-                        _mask_gt)
+            else:
+                _pred_scores = pred_scores.detach().cpu().float()
+                _pred_bboxes = pred_bboxes.detach().cpu().float()
+                _anchor_points = anchor_points.cpu().float()
+                _gt_labels = gt_labels.cpu().float()
+                _gt_bboxes = gt_bboxes.cpu().float()
+                _mask_gt = mask_gt.cpu().float()
+                _stride_tensor = stride_tensor.cpu().float()
+                
+                target_labels, target_bboxes, target_scores, fg_mask = \
+                    self.formal_assigner(
+                            _pred_scores,
+                            _pred_bboxes * _stride_tensor,
+                            _anchor_points,
+                            _gt_labels,
+                            _gt_bboxes,
+                            _mask_gt)
             
             target_labels = target_labels.cuda()
             target_bboxes = target_bboxes.cuda()
@@ -136,7 +165,7 @@ class ComputeLoss:
             if target_scores_sum > 0:
                 loss_cls /= target_scores_sum
         except BaseException as e:
-            print(f'Loss_fuse ERROR: {e}')
+            print(f'Loss ERROR: {e}')
             if not torch.any(torch.isnan(target_scores)):
                 target_scores_sum = target_scores.sum()
                 if not torch.isnan(target_scores_sum) and target_scores_sum > 0:
@@ -184,7 +213,8 @@ class VarifocalLoss(nn.Module):
     
     def forward(self, pred_score, gt_score, label, alpha=0.75, gamma=2.0):
         weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
-        with torch.cuda.amp.autocast(enabled=False):
+        # with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(device_type='cuda', enabled=False):
             loss = (F.binary_cross_entropy(pred_score.float(), gt_score.float(), reduction='none') * weight).sum()
         
         return loss

@@ -5,8 +5,9 @@ __pycache__/
 **/*.pyc
 
 # C extensions
-dataset/
+
 # Dataset
+dataset/
 
 # Distribution / packaging
 
