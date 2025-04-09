@@ -116,6 +116,9 @@ class ComputeLoss:
             target_labels = target_labels.cuda()
             target_bboxes = target_bboxes.cuda()
             target_scores = target_scores.cuda()
+
+            target_scores = torch.clamp(target_scores, 0.0, 1.0)  
+
             fg_mask = fg_mask.cuda()
         # Dynamic release GPU memory
         if step_num % 10 == 0:
@@ -129,8 +132,9 @@ class ComputeLoss:
         one_hot_label = F.one_hot(target_labels.long(), self.num_classes + 1)[..., :-1]
 
         # 在此處添加 clamp 操作 --> 確保目標值在預期的範圍 [0, 1]
-        target_scores = torch.clamp(target_scores, 0.0, 1.0)
-        
+        target_scores = torch.clamp(target_scores, 0.0, 1.0)  # 確保目標值在 [0, 1] 範圍內
+
+        print(f"Before loss_cls - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
         loss_cls = self.varifocal_loss(pred_scores, target_scores, one_hot_label)
         
         # avoid devide zero error, devide by zero will cause loss to be inf or nan.
@@ -149,6 +153,9 @@ class ComputeLoss:
                 target_scores_sum = 0
         
         # bbox loss
+        print(f"Before bbox_loss - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
+        target_scores = torch.clamp(target_scores, 0.0, 1.0)  
+
         loss_iou, loss_dfl = self.bbox_loss(pred_distri, pred_bboxes, anchor_points_s, target_bboxes,
                                             target_scores, target_scores_sum, fg_mask)
         
@@ -187,6 +194,10 @@ class VarifocalLoss(nn.Module):
         super(VarifocalLoss, self).__init__()
     
     def forward(self, pred_score, gt_score, label, alpha=0.75, gamma=2.0):
+        # 添加 clamp 確保值域正確
+        gt_score = torch.clamp(gt_score, 0.0, 1.0)
+        pred_score = torch.clamp(pred_score, 1e-6, 1.0 - 1e-6)  # 防止 BCE 中的數值問題
+
         weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
         # with torch.cuda.amp.autocast(enabled=False):
         with torch.amp.autocast(device_type='cuda', enabled=False):
