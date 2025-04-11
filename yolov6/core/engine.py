@@ -2,37 +2,38 @@
 #            Huawei Technologies Co., Ltd. <foss@huawei.com
 # !/usr/bin/env python3
 # -*- coding:utf-8 -*-
-from ast import Pass
+import math
 import os
-import time
-from copy import deepcopy
 import os.path as osp
-
-from tqdm import tqdm
+import time
+from ast import Pass
+from copy import deepcopy
 
 import cv2
 import numpy as np
-import math
 import torch
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 import tools.eval as eval
 from yolov6.data.data_load import create_dataloader
-from yolov6.models.yolo import build_model
-
 from yolov6.models.losses.loss import ComputeLoss as ComputeLoss
+from yolov6.models.losses.loss_distill import \
+    ComputeLoss as ComputeLoss_distill
+from yolov6.models.losses.loss_distill_ns import \
+    ComputeLoss as ComputeLoss_distill_ns
 from yolov6.models.losses.loss_fuseab import ComputeLoss as ComputeLoss_ab
-from yolov6.models.losses.loss_distill import ComputeLoss as ComputeLoss_distill
-from yolov6.models.losses.loss_distill_ns import ComputeLoss as ComputeLoss_distill_ns
-
-from yolov6.utils.events import LOGGER, NCOLS, load_yaml, write_tblog, write_tbimg
+from yolov6.models.yolo import build_model
+from yolov6.solver.build import build_lr_scheduler, build_optimizer
+from yolov6.utils.checkpoint import (load_state_dict, save_checkpoint,
+                                     strip_optimizer)
 from yolov6.utils.ema import ModelEMA, de_parallel
-from yolov6.utils.checkpoint import load_state_dict, save_checkpoint, strip_optimizer
-from yolov6.solver.build import build_optimizer, build_lr_scheduler
-from yolov6.utils.RepOptimizer import extract_scales, RepVGGOptimizer
+from yolov6.utils.events import (LOGGER, NCOLS, load_yaml, write_tbimg,
+                                 write_tblog)
 from yolov6.utils.nms import xywh2xyxy
+from yolov6.utils.RepOptimizer import RepVGGOptimizer, extract_scales
 
 
 class Trainer:
@@ -136,38 +137,50 @@ class Trainer:
     
     # Training loop for batchdata
     def train_in_steps(self, epoch_num, step_num):
-        images, targets = self.prepro_data(self.batch_data, self.device)
-        # plot train_batch and save to tensorboard once an epoch
-        if self.write_trainbatch_tb and self.main_process and self.step == 0:
-            self.plot_train_batch(images, targets)
-            write_tbimg(self.tblogger, self.vis_train_batch, self.step + self.max_stepnum * self.epoch, type='train')
-        
-        # forward
-        # with amp.autocast(enabled=self.device != 'cpu'):
-        with torch.amp.autocast(device_type='cuda', enabled=(self.device != 'cpu')):
-            preds, s_featmaps = self.model(images)
-            if self.args.distill:
-                with torch.no_grad():
-                    t_preds, t_featmaps = self.teacher_model(images)
-                temperature = self.args.temperature
-                total_loss, loss_items = self.compute_loss_distill(preds, t_preds, s_featmaps, t_featmaps, targets, \
-                                                                   epoch_num, self.max_epoch, temperature, step_num)
+        try:
+            images, targets = self.prepro_data(self.batch_data, self.device)
+            # plot train_batch and save to tensorboard once an epoch
+            if self.write_trainbatch_tb and self.main_process and self.step == 0:
+                self.plot_train_batch(images, targets)
+                write_tbimg(self.tblogger, self.vis_train_batch, self.step + self.max_stepnum * self.epoch, type='train')
             
-            elif self.args.fuse_ab:
-                total_loss, loss_items = self.compute_loss((preds[0], preds[3], preds[4]), targets, epoch_num,
-                                                           step_num)  # YOLOv6_af
-                total_loss_ab, loss_items_ab = self.compute_loss_ab(preds[:3], targets, epoch_num,
-                                                                    step_num)  # YOLOv6_ab
-                total_loss += total_loss_ab
-                loss_items += loss_items_ab
+            # forward
+            # with amp.autocast(enabled=self.device != 'cpu'):
+            with torch.amp.autocast(device_type='cuda', enabled=(self.device != 'cpu')):
+                preds, s_featmaps = self.model(images)
+                if self.args.distill:
+                    with torch.no_grad():
+                        t_preds, t_featmaps = self.teacher_model(images)
+                    temperature = self.args.temperature
+                    total_loss, loss_items = self.compute_loss_distill(preds, t_preds, s_featmaps, t_featmaps, targets, \
+                                                                    epoch_num, self.max_epoch, temperature, step_num)
+                
+                elif self.args.fuse_ab:
+                    total_loss, loss_items = self.compute_loss((preds[0], preds[3], preds[4]), targets, epoch_num,
+                                                            step_num)  # YOLOv6_af
+                    total_loss_ab, loss_items_ab = self.compute_loss_ab(preds[:3], targets, epoch_num,
+                                                                        step_num)  # YOLOv6_ab
+                    total_loss += total_loss_ab
+                    loss_items += loss_items_ab
+                else:
+                    total_loss, loss_items = self.compute_loss(preds, targets, epoch_num, step_num)  # YOLOv6_af
+                if self.rank != -1:
+                    total_loss *= self.world_size
+            # backward
+            self.scaler.scale(total_loss).backward()
+            self.loss_items = loss_items
+            self.update_optimizer()
+        
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "device-side assert triggered" in error_msg or "value cannot be converted" in error_msg:
+                print(f"警告: 在 epoch {epoch_num}, step {step_num} 發生數值錯誤。跳過此批次。")
+                # 清空緩存並重置優化器
+                torch.cuda.empty_cache()
+                self.optimizer.zero_grad()
+                return
             else:
-                total_loss, loss_items = self.compute_loss(preds, targets, epoch_num, step_num)  # YOLOv6_af
-            if self.rank != -1:
-                total_loss *= self.world_size
-        # backward
-        self.scaler.scale(total_loss).backward()
-        self.loss_items = loss_items
-        self.update_optimizer()
+                raise  # 重新引發其他錯誤
     
     def eval_and_save(self):
         remaining_epochs = self.max_epoch - self.epoch
@@ -571,7 +584,8 @@ class Trainer:
     # QAT
     def quant_setup(self, model, cfg, device):
         if self.args.quant:
-            from tools.qat.qat_utils import qat_init_model_manu, skip_sensitive_layers
+            from tools.qat.qat_utils import (qat_init_model_manu,
+                                             skip_sensitive_layers)
             qat_init_model_manu(model, cfg, self.args)
             # workaround
             model.neck.upsample_enable_quant(cfg.ptq.num_bits, cfg.ptq.calib_method)

@@ -3,14 +3,15 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
+
 from yolov6.assigners.anchor_generator import generate_anchors
-from yolov6.utils.general import dist2bbox, bbox2dist, xywh2xyxy, box_iou
-from yolov6.utils.figure_iou import IOUloss
 from yolov6.assigners.tal_assigner import TaskAlignedAssigner
+from yolov6.utils.figure_iou import IOUloss
+from yolov6.utils.general import bbox2dist, box_iou, dist2bbox, xywh2xyxy
 
 
 class ComputeLoss:
@@ -86,6 +87,9 @@ class ComputeLoss:
                         gt_labels,
                         gt_bboxes,
                         mask_gt)
+            
+            # 立即限制 target_scores 範圍
+            target_scores = torch.clamp(target_scores, 0.0, 1.0)
         
         except RuntimeError:
             print(
@@ -117,7 +121,21 @@ class ComputeLoss:
             target_bboxes = target_bboxes.cuda()
             target_scores = target_scores.cuda()
 
-            target_scores = torch.clamp(target_scores, 0.0, 1.0)  
+            # 對 target_scores 進行更全面的檢查和清理
+            # 檢查 NaN 和極值
+            if torch.isnan(target_scores).any():
+                print(f"警告: 在 epoch {epoch_num}, step {step_num} 的 target_scores 中檢測到 NaN 值")
+                target_scores = torch.nan_to_num(target_scores, 0.0)
+            
+            # 統一確保所有標籤值都在合法範圍內
+            target_scores = torch.clamp(target_scores, 0.0, 1.0)
+
+            # 安全計算 target_scores_sum
+            try:
+                target_scores_sum = torch.clamp(target_scores.sum(), min=1e-6)  # 避免除以零
+            except Exception as e:
+                print(f'計算 target_scores_sum 時出錯: {e}')
+                target_scores_sum = torch.tensor(1.0, device=target_scores.device)
 
             fg_mask = fg_mask.cuda()
         # Dynamic release GPU memory
@@ -198,10 +216,43 @@ class VarifocalLoss(nn.Module):
         gt_score = torch.clamp(gt_score, 0.0, 1.0)
         pred_score = torch.clamp(pred_score, 1e-6, 1.0 - 1e-6)  # 防止 BCE 中的數值問題
 
-        weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
-        # with torch.cuda.amp.autocast(enabled=False):
+        # 檢查是否有 NaN 值並處理
+        if torch.isnan(gt_score).any() or torch.isnan(pred_score).any():
+            print("警告：在計算損失前檢測到 NaN 值！")
+            gt_score = torch.nan_to_num(gt_score, 0.0)
+            pred_score = torch.nan_to_num(pred_score, 0.5)
+        
+        # 確保 weight 計算時不會出現極值
+        with torch.no_grad():
+            weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
+            weight = torch.clamp(weight, min=0.0, max=1000.0)
+            
+        # 使用 float32 精度以提高數值穩定性
         with torch.amp.autocast(device_type='cuda', enabled=False):
-            loss = (F.binary_cross_entropy(pred_score.float(), gt_score.float(), reduction='none') * weight).sum()
+            try:
+                # 確保輸入 BCE 的值都在合法範圍
+                gt_score_safe = torch.clamp(gt_score.float(), 0.0, 1.0)
+                pred_score_safe = torch.clamp(pred_score.float(), 1e-6, 1.0 - 1e-6)
+                loss = F.binary_cross_entropy(
+                    pred_score_safe, 
+                    gt_score_safe, 
+                    reduction='none'
+                )
+                loss = (loss * weight).sum()
+                
+                # 避免返回無限值或 NaN
+                if torch.isnan(loss) or torch.isinf(loss):
+                    print("警告：檢測到無效損失值！重置為零")
+                    return torch.tensor(0.0, device=pred_score.device, dtype=pred_score.dtype)
+                return loss
+            except Exception as e:
+                print(f"損失計算錯誤: {e}")
+                return torch.tensor(0.0, device=pred_score.device, dtype=pred_score.dtype)
+            
+        # weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
+        # with torch.cuda.amp.autocast(enabled=False):
+        # with torch.amp.autocast(device_type='cuda', enabled=False):
+        #     loss = (F.binary_cross_entropy(pred_score.float(), gt_score.float(), reduction='none') * weight).sum()
         
         return loss
 
