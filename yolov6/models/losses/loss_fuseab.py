@@ -134,7 +134,7 @@ class ComputeLoss:
         # 在此處添加 clamp 操作 --> 確保目標值在預期的範圍 [0, 1]
         target_scores = torch.clamp(target_scores, 0.0, 1.0)  # 確保目標值在 [0, 1] 範圍內
 
-        print(f"Before loss_cls - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
+        # print(f"Before loss_cls - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
         loss_cls = self.varifocal_loss(pred_scores, target_scores, one_hot_label)
         
         # avoid devide zero error, devide by zero will cause loss to be inf or nan.
@@ -153,7 +153,7 @@ class ComputeLoss:
                 target_scores_sum = 0
         
         # bbox loss
-        print(f"Before bbox_loss - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
+        # print(f"Before bbox_loss - target_scores min: {target_scores.min().item()}, max: {target_scores.max().item()}")
         target_scores = torch.clamp(target_scores, 0.0, 1.0)  
 
         loss_iou, loss_dfl = self.bbox_loss(pred_distri, pred_bboxes, anchor_points_s, target_bboxes,
