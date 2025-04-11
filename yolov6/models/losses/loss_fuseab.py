@@ -228,6 +228,10 @@ class BboxLoss(nn.Module):
                     target_bboxes, bbox_mask).reshape([-1, 4])
             bbox_weight = torch.masked_select(
                     target_scores.sum(-1), fg_mask).unsqueeze(-1)
+            
+            # 確保權重數值合法
+            bbox_weight = torch.clamp(bbox_weight, 0.0, 1000.0)  # 避免極端大值
+
             loss_iou = self.iou_loss(pred_bboxes_pos,
                                      target_bboxes_pos) * bbox_weight
             if target_scores_sum == 0:
