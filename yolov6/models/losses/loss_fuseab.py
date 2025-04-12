@@ -265,54 +265,152 @@ class BboxLoss(nn.Module):
         self.reg_max = reg_max
         self.use_dfl = use_dfl
     
+    # def forward(self, pred_dist, pred_bboxes, anchor_points,
+    #             target_bboxes, target_scores, target_scores_sum, fg_mask):
+        
+    #     # select positive samples mask
+    #     num_pos = fg_mask.sum()
+    #     if num_pos > 0:
+    #         # iou loss
+    #         bbox_mask = fg_mask.unsqueeze(-1).repeat([1, 1, 4])
+    #         pred_bboxes_pos = torch.masked_select(pred_bboxes,
+    #                                               bbox_mask).reshape([-1, 4])
+    #         target_bboxes_pos = torch.masked_select(
+    #                 target_bboxes, bbox_mask).reshape([-1, 4])
+    #         bbox_weight = torch.masked_select(
+    #                 target_scores.sum(-1), fg_mask).unsqueeze(-1)
+            
+    #         # 確保權重數值合法
+    #         bbox_weight = torch.clamp(bbox_weight, 0.0, 1000.0)  # 避免極端大值
+
+    #         loss_iou = self.iou_loss(pred_bboxes_pos,
+    #                                  target_bboxes_pos) * bbox_weight
+    #         if target_scores_sum == 0:
+    #             loss_iou = loss_iou.sum()
+    #         else:
+    #             loss_iou = loss_iou.sum() / target_scores_sum
+            
+    #         # dfl loss
+    #         if self.use_dfl:
+    #             dist_mask = fg_mask.unsqueeze(-1).repeat(
+    #                     [1, 1, (self.reg_max + 1) * 4])
+    #             pred_dist_pos = torch.masked_select(
+    #                     pred_dist, dist_mask).reshape([-1, 4, self.reg_max + 1])
+    #             target_ltrb = bbox2dist(anchor_points, target_bboxes, self.reg_max)
+    #             target_ltrb_pos = torch.masked_select(
+    #                     target_ltrb, bbox_mask).reshape([-1, 4])
+    #             loss_dfl = self._df_loss(pred_dist_pos,
+    #                                      target_ltrb_pos) * bbox_weight
+    #             if target_scores_sum == 0:
+    #                 loss_dfl = loss_dfl.sum()
+    #             else:
+    #                 loss_dfl = loss_dfl.sum() / target_scores_sum
+    #         else:
+    #             loss_dfl = pred_dist.sum() * 0.
+        
+    #     else:
+    #         loss_iou = pred_dist.sum() * 0.
+    #         loss_dfl = pred_dist.sum() * 0.
+        
+    #     return loss_iou, loss_dfl
+
     def forward(self, pred_dist, pred_bboxes, anchor_points,
                 target_bboxes, target_scores, target_scores_sum, fg_mask):
         
+        # 檢查輸入是否有 NaN 或 Inf
+        if torch.isnan(pred_bboxes).any() or torch.isinf(pred_bboxes).any():
+            pred_bboxes = torch.nan_to_num(pred_bboxes, nan=0.0, posinf=1.0, neginf=0.0)
+            
+        if torch.isnan(target_bboxes).any() or torch.isinf(target_bboxes).any():
+            target_bboxes = torch.nan_to_num(target_bboxes, nan=0.0, posinf=1.0, neginf=0.0)
+        
+        # 確保 target_scores 在 [0,1] 範圍內
+        target_scores = torch.clamp(target_scores, 0.0, 1.0)
+        
+        # 確保 target_scores_sum > 0
+        if target_scores_sum <= 1e-6:
+            target_scores_sum = torch.tensor(1.0, device=target_scores.device)
+        
         # select positive samples mask
         num_pos = fg_mask.sum()
-        if num_pos > 0:
-            # iou loss
-            bbox_mask = fg_mask.unsqueeze(-1).repeat([1, 1, 4])
-            pred_bboxes_pos = torch.masked_select(pred_bboxes,
-                                                  bbox_mask).reshape([-1, 4])
-            target_bboxes_pos = torch.masked_select(
-                    target_bboxes, bbox_mask).reshape([-1, 4])
-            bbox_weight = torch.masked_select(
-                    target_scores.sum(-1), fg_mask).unsqueeze(-1)
-            
-            # 確保權重數值合法
-            bbox_weight = torch.clamp(bbox_weight, 0.0, 1000.0)  # 避免極端大值
-
-            loss_iou = self.iou_loss(pred_bboxes_pos,
-                                     target_bboxes_pos) * bbox_weight
-            if target_scores_sum == 0:
-                loss_iou = loss_iou.sum()
-            else:
-                loss_iou = loss_iou.sum() / target_scores_sum
-            
-            # dfl loss
-            if self.use_dfl:
-                dist_mask = fg_mask.unsqueeze(-1).repeat(
-                        [1, 1, (self.reg_max + 1) * 4])
-                pred_dist_pos = torch.masked_select(
-                        pred_dist, dist_mask).reshape([-1, 4, self.reg_max + 1])
-                target_ltrb = bbox2dist(anchor_points, target_bboxes, self.reg_max)
-                target_ltrb_pos = torch.masked_select(
-                        target_ltrb, bbox_mask).reshape([-1, 4])
-                loss_dfl = self._df_loss(pred_dist_pos,
-                                         target_ltrb_pos) * bbox_weight
-                if target_scores_sum == 0:
-                    loss_dfl = loss_dfl.sum()
+        
+        try:
+            if num_pos > 0:
+                # iou loss
+                with torch.no_grad():
+                    bbox_mask = fg_mask.unsqueeze(-1).repeat([1, 1, 4])
+                
+                # 使用 try-except 捕獲可能的錯誤
+                try:
+                    pred_bboxes_pos = torch.masked_select(
+                            pred_bboxes, bbox_mask).reshape([-1, 4])
+                    target_bboxes_pos = torch.masked_select(
+                            target_bboxes, bbox_mask).reshape([-1, 4])
+                    
+                    # 檢查選擇後的形狀是否正確
+                    if pred_bboxes_pos.shape[0] == 0 or target_bboxes_pos.shape[0] == 0:
+                        raise ValueError("Empty bbox tensors after masking")
+                        
+                    bbox_weight = torch.masked_select(
+                            target_scores.sum(-1), fg_mask).unsqueeze(-1)
+                    
+                    # 強制限制 bbox_weight 的範圍
+                    bbox_weight = torch.clamp(bbox_weight, 0.0, 1.0)  # 更嚴格的限制
+                    
+                    # 確保計算 IoU 損失時不會有 NaN 或 Inf
+                    with torch.amp.autocast(device_type='cuda', enabled=False):
+                        # 使用 float32 精度
+                        pred_bboxes_pos = pred_bboxes_pos.float()
+                        target_bboxes_pos = target_bboxes_pos.float()
+                        loss_iou = self.iou_loss(pred_bboxes_pos, target_bboxes_pos) * bbox_weight
+                        loss_iou = loss_iou.sum() / target_scores_sum
+                        
+                        # 檢查 loss_iou 是否為 NaN 或 Inf
+                        if torch.isnan(loss_iou) or torch.isinf(loss_iou):
+                            print("警告：IoU loss 為 NaN 或 Inf，重置為 0")
+                            loss_iou = pred_bboxes.new_tensor(0.0)
+                    
+                except Exception as e:
+                    print(f"計算 IoU loss 發生錯誤: {e}")
+                    loss_iou = pred_bboxes.new_tensor(0.0)
+                
+                # dfl loss
+                if self.use_dfl:
+                    try:
+                        with torch.no_grad():
+                            dist_mask = fg_mask.unsqueeze(-1).repeat(
+                                    [1, 1, (self.reg_max + 1) * 4])
+                        
+                        pred_dist_pos = torch.masked_select(
+                                pred_dist, dist_mask).reshape([-1, 4, self.reg_max + 1])
+                        target_ltrb = bbox2dist(anchor_points, target_bboxes, self.reg_max)
+                        target_ltrb_pos = torch.masked_select(
+                                target_ltrb, bbox_mask).reshape([-1, 4])
+                        
+                        # 確保在 DFL loss 計算前值是有效的
+                        with torch.amp.autocast(device_type='cuda', enabled=False):
+                            loss_dfl = self._df_loss_safe(pred_dist_pos, target_ltrb_pos) * bbox_weight
+                            loss_dfl = loss_dfl.sum() / target_scores_sum
+                            
+                            # 檢查 loss_dfl 是否為 NaN 或 Inf
+                            if torch.isnan(loss_dfl) or torch.isinf(loss_dfl):
+                                print("警告：DFL loss 為 NaN 或 Inf，重置為 0")
+                                loss_dfl = pred_dist.new_tensor(0.0)
+                    except Exception as e:
+                        print(f"計算 DFL loss 發生錯誤: {e}")
+                        loss_dfl = pred_dist.new_tensor(0.0)
                 else:
-                    loss_dfl = loss_dfl.sum() / target_scores_sum
+                    loss_dfl = pred_dist.new_tensor(0.0)
+            
             else:
-                loss_dfl = pred_dist.sum() * 0.
+                loss_iou = pred_dist.new_tensor(0.0)
+                loss_dfl = pred_dist.new_tensor(0.0)
+            
+            return loss_iou, loss_dfl
         
-        else:
-            loss_iou = pred_dist.sum() * 0.
-            loss_dfl = pred_dist.sum() * 0.
-        
-        return loss_iou, loss_dfl
+        except Exception as e:
+            print(f"BboxLoss forward 函數發生未處理錯誤: {e}")
+            return pred_dist.new_tensor(0.0), pred_dist.new_tensor(0.0)
     
     def _df_loss(self, pred_dist, target):
         target_left = target.to(torch.long)
