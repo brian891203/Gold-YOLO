@@ -88,12 +88,26 @@ class TaskAlignedAssigner(nn.Module):
             align_metric *= mask_pos
             pos_align_metrics = align_metric.max(axis=-1, keepdim=True)[0]
             pos_overlaps = (overlaps * mask_pos).max(axis=-1, keepdim=True)[0]
-            # --- Add check for pos_align_metrics ---
-            # 檢查分母是否接近零
-            if (pos_align_metrics <= self.eps).any():
-                print(f"DEBUG Assigner: pos_align_metrics near zero detected!")
-            # --- End check ---
-            norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).max(-2)[0].unsqueeze(-1)
+
+            # --- Safely calculate norm_align_metric ---
+            # Create a mask where the denominator is safe (greater than eps)
+            safe_division_mask = pos_align_metrics > self.eps
+
+            # Initialize norm_align_metric_raw with zeros
+            norm_align_metric_raw = torch.zeros_like(align_metric)
+
+            # Perform division only where it's safe
+            # Use .detach() on denominator to prevent potential gradient issues if needed, though likely not the primary problem here.
+            norm_align_metric_raw[safe_division_mask] = (align_metric * pos_overlaps)[safe_division_mask] / pos_align_metrics[safe_division_mask] # .detach() removed for now
+
+            # Get the max and unsqueeze
+            norm_align_metric = norm_align_metric_raw.max(-2)[0].unsqueeze(-1)
+
+            # --- Clamp norm_align_metric ---
+            # Ensure norm_align_metric is not NaN/Inf and clamp it to [0, 1]
+            # This prevents multiplying target_scores by extreme values.
+            norm_align_metric = torch.nan_to_num(norm_align_metric, nan=0.0, posinf=1.0, neginf=0.0)
+            norm_align_metric = torch.clamp(norm_align_metric, 0.0, 1.0)
             # --- Add check for norm_align_metric ---
             # 檢查計算出的 norm_align_metric 是否有效
             if torch.isnan(norm_align_metric).any() or torch.isinf(norm_align_metric).any():
