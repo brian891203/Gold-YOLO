@@ -91,14 +91,29 @@ class TaskAlignedAssigner(nn.Module):
 
             # --- Safely calculate norm_align_metric ---
             # Create a mask where the denominator is safe (greater than eps)
-            safe_division_mask = pos_align_metrics > self.eps
+            # Expand the mask to match the shape of align_metric for indexing
+            safe_division_mask = (pos_align_metrics > self.eps).expand_as(align_metric) # MODIFIED: Expand mask
 
             # Initialize norm_align_metric_raw with zeros
             norm_align_metric_raw = torch.zeros_like(align_metric)
 
             # Perform division only where it's safe
-            # Use .detach() on denominator to prevent potential gradient issues if needed, though likely not the primary problem here.
-            norm_align_metric_raw[safe_division_mask] = (align_metric * pos_overlaps)[safe_division_mask] / pos_align_metrics[safe_division_mask] # .detach() removed for now
+            # Use the expanded mask for indexing both sides
+            # Also expand pos_align_metrics for the division
+            # Ensure pos_overlaps is also expanded correctly for multiplication
+            pos_overlaps_expanded = pos_overlaps.expand_as(align_metric)
+            pos_align_metrics_expanded = pos_align_metrics.expand_as(align_metric)
+
+            # Check shapes before division if needed
+            # print("align_metric shape:", align_metric.shape)
+            # print("pos_overlaps_expanded shape:", pos_overlaps_expanded.shape)
+            # print("pos_align_metrics_expanded shape:", pos_align_metrics_expanded.shape)
+            # print("safe_division_mask shape:", safe_division_mask.shape)
+
+            # Perform division using expanded tensors and mask
+            numerator = (align_metric * pos_overlaps_expanded)[safe_division_mask]
+            denominator = pos_align_metrics_expanded[safe_division_mask]
+            norm_align_metric_raw[safe_division_mask] = numerator / denominator
 
             # Get the max and unsqueeze
             norm_align_metric = norm_align_metric_raw.max(-2)[0].unsqueeze(-1)
