@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from yolov6.assigners.assigner_utils import select_candidates_in_gts, select_highest_overlaps, iou_calculator, \
-    dist_calculator
+
+from yolov6.assigners.assigner_utils import (dist_calculator, iou_calculator,
+                                             select_candidates_in_gts,
+                                             select_highest_overlaps)
 
 
 class TaskAlignedAssigner(nn.Module):
@@ -75,12 +77,41 @@ class TaskAlignedAssigner(nn.Module):
             target_labels, target_bboxes, target_scores = self.get_targets(
                     gt_labels_, gt_bboxes_, target_gt_idx, fg_mask)
             
+            # # normalize
+            # align_metric *= mask_pos
+            # pos_align_metrics = align_metric.max(axis=-1, keepdim=True)[0]
+            # pos_overlaps = (overlaps * mask_pos).max(axis=-1, keepdim=True)[0]
+            # norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).max(-2)[0].unsqueeze(-1)
+            # target_scores = target_scores * norm_align_metric
+
             # normalize
             align_metric *= mask_pos
             pos_align_metrics = align_metric.max(axis=-1, keepdim=True)[0]
             pos_overlaps = (overlaps * mask_pos).max(axis=-1, keepdim=True)[0]
+            # --- Add check for pos_align_metrics ---
+            # 檢查分母是否接近零
+            if (pos_align_metrics <= self.eps).any():
+                print(f"DEBUG Assigner: pos_align_metrics near zero detected!")
+            # --- End check ---
             norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).max(-2)[0].unsqueeze(-1)
-            target_scores = target_scores * norm_align_metric
+            # --- Add check for norm_align_metric ---
+            # 檢查計算出的 norm_align_metric 是否有效
+            if torch.isnan(norm_align_metric).any() or torch.isinf(norm_align_metric).any():
+                print(f"DEBUG Assigner: norm_align_metric contains NaN/Inf!")
+            if (norm_align_metric < 0.0).any():
+                print(f"DEBUG Assigner: norm_align_metric contains negative values! Min: {norm_align_metric.min().item()}")
+            # --- End check ---
+            target_scores = target_scores * norm_align_metric # 歸一化目標分數
+
+            # --- Add check after multiplication ---
+            # 檢查乘法後 target_scores 是否有效
+            if torch.isnan(target_scores).any() or torch.isinf(target_scores).any():
+                print(f"DEBUG Assigner (Post-Norm): target_scores contains NaN/Inf!")
+            min_ts_post_norm = target_scores.min().item()
+            max_ts_post_norm = target_scores.max().item()
+            if min_ts_post_norm < 0.0 or max_ts_post_norm > 1.0:
+                print(f"DEBUG Assigner (Post-Norm): target_scores 超出 [0, 1]! Min: {min_ts_post_norm}, Max: {max_ts_post_norm}")
+            # --- End check ---
             
             # append
             target_labels_lst.append(target_labels)

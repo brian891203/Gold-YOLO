@@ -231,6 +231,14 @@ class VarifocalLoss(nn.Module):
             gt_score = torch.nan_to_num(gt_score, 0.0)
             pred_score = torch.nan_to_num(pred_score, 0.5)
         
+        # --- Check label input ---
+        # 檢查傳入的 label 是否只包含 0 和 1
+        if not torch.all((label == 0) | (label == 1)):
+            print(f"DEBUG VarifocalLoss Input: label contains values other than 0 or 1!")
+            # 可以考慮在這裡也 clamp label，雖然理論上不應該發生
+            # label = torch.clamp(label, 0, 1)
+        # --- End check ---
+
         # 確保 weight 計算時不會出現極值
         with torch.no_grad():
             weight = alpha * pred_score.pow(gamma) * (1 - label) + gt_score * label
