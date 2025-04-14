@@ -88,6 +88,15 @@ class ComputeLoss:
                         gt_bboxes,
                         mask_gt)
             
+            # --- 添加調試打印 ---
+            if torch.isnan(target_scores).any() or torch.isinf(target_scores).any():
+                print(f"DEBUG Assigner Output: target_scores 包含 NaN/Inf!")
+            min_ts = target_scores.min().item()
+            max_ts = target_scores.max().item()
+            if min_ts < 0.0 or max_ts > 1.0:
+                print(f"DEBUG Assigner Output: target_scores 超出 [0, 1]! Min: {min_ts}, Max: {max_ts}")
+            # --- 調試打印結束 ---
+            
             # 立即限制 target_scores 範圍
             target_scores = torch.clamp(target_scores, 0.0, 1.0)
         
