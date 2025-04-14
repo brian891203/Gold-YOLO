@@ -233,6 +233,14 @@ class VarifocalLoss(nn.Module):
                 # 確保輸入 BCE 的值都在合法範圍
                 gt_score_safe = torch.clamp(gt_score.float(), 0.0, 1.0)
                 pred_score_safe = torch.clamp(pred_score.float(), 1e-6, 1.0 - 1e-6)
+
+                # --- 添加調試打印 ---
+                if torch.isnan(gt_score_safe).any() or torch.isinf(gt_score_safe).any():
+                    print(f"警告: gt_score_safe 包含 NaN/Inf!")
+                if (gt_score_safe < 0.0).any() or (gt_score_safe > 1.0).any():
+                    print(f"警告: gt_score_safe 超出 [0, 1] 範圍! Min: {gt_score_safe.min().item()}, Max: {gt_score_safe.max().item()}")
+                # --- 調試打印結束 ---
+
                 loss = F.binary_cross_entropy(
                     pred_score_safe, 
                     gt_score_safe, 
