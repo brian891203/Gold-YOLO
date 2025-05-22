@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+
+import debugpy
+debugpy.listen(("0.0.0.0", 12346))
+print("Waiting for client to attach...")
+debugpy.wait_for_client()
+
 import argparse
 from logging import Logger
 import os
