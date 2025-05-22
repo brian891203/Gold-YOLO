@@ -3,9 +3,11 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 import os
-import shutil
-import torch
 import os.path as osp
+import shutil
+
+import torch
+
 from yolov6.utils.events import LOGGER
 from yolov6.utils.torch_utils import fuse_model
 
@@ -75,3 +77,19 @@ def strip_optimizer(ckpt_dir, epoch):
         for p in ckpt['model'].parameters():
             p.requires_grad = False
         torch.save(ckpt, ckpt_path)
+
+        # 遍歷模型檢查點：對 'last' 和 'best' 兩種檢查點進行處理
+        # 檢查路徑格式：{dir_path}/{sm}_ckpt.pt，其中 sm 是 'last' 或 'best'
+        # 如果檢查點不存在則跳過
+        # 加載檢查點：使用 torch.load 加載檢查點文件到 CPU 內存
+
+        # map_location=torch.device('cpu') 確保模型能在任何設備上加載
+        # 選擇模型權重：優先使用 EMA 模型（如果存在）
+
+        # EMA (Exponential Moving Average) 模型通常提供更好的泛化性能
+        # 使用 .float() 確保模型參數為單精度浮點格式
+        # 保存精簡模型：只保存輪次信息和模型權重
+
+        # 移除優化器狀態、學習率調度器和其他訓練相關參數
+        # 使用與原檢查點相同的文件名覆蓋保存
+        # 記錄日誌：輸出成功精簡的信息
