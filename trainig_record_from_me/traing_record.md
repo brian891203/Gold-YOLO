@@ -4,7 +4,7 @@
     ``` bash
     torchrun --nproc_per_node=1 tools/train.py --img-size 320 --batch 64 --workers 2 --conf configs/gold_yolo-n.py --data data/coco.yaml --epoch 300 --fuse_ab --use_syncbn --device 0 --name gold_yolo-n
     ```
-    #### gold_yolo-n8:
+    #### n8:
         * 20 epoch result:
             ```
             Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.119
@@ -60,92 +60,74 @@
             Epoch: 60 | mAP@0.5: 0.2612773929912459 | mAP@0.50:0.95: 0.1674588172033737
             ```
         * 80 epoch result:
-            ```
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.177
-            Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.275
-            Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.186
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.045
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.182
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.293
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.210
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.361
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.394
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.116
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.448
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.642
-            Final mAP@0.5: 0.275, mAP@0.5:0.95: 0.177
-            Final mAP@0.5: 0.275, mAP@0.5:0.95: 0.177
-            Epoch: 80 | mAP@0.5: 0.27532124029562244 | mAP@0.50:0.95: 0.17689302881460972
-            ```
+        ```
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.177
+        Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.275
+        Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.186
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.045
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.182
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.293
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.210
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.361
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.394
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.116
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.448
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.642
+        Final mAP@0.5: 0.275, mAP@0.5:0.95: 0.177
+        Final mAP@0.5: 0.275, mAP@0.5:0.95: 0.177
+        Epoch: 80 | mAP@0.5: 0.27532124029562244 | mAP@0.50:0.95: 0.17689302881460972
+        ```
         * 120:
-            ```
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.192
-            Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.296
-            Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.203
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.047
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.197
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.323
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.217
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.370
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.404
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.121
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.462
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.651
-            Final mAP@0.5: 0.296, mAP@0.5:0.95: 0.192
-            Final mAP@0.5: 0.296, mAP@0.5:0.95: 0.192
-            Epoch: 120 | mAP@0.5: 0.296216257284391 | mAP@0.50:0.95: 0.19190249285940328
-            ```
+        ```
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.192
+        Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.296
+        Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.203
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.047
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.197
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.323
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.217
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.370
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.404
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.121
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.462
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.651
+        Final mAP@0.5: 0.296, mAP@0.5:0.95: 0.192
+        Final mAP@0.5: 0.296, mAP@0.5:0.95: 0.192
+        Epoch: 120 | mAP@0.5: 0.296216257284391 | mAP@0.50:0.95: 0.19190249285940328
+        ```
         * 140:
-            ```
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.201
-            Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.309
-            Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.211
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.049
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.206
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.340
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.223
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.375
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.410
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.124
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.467
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.660
-            Final mAP@0.5: 0.309, mAP@0.5:0.95: 0.201
-            Final mAP@0.5: 0.309, mAP@0.5:0.95: 0.201
-            Epoch: 140 | mAP@0.5: 0.3094196664085125 | mAP@0.50:0.95: 0.2008188574325598
-            ```
+        ```
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.201
+        Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.309
+        Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.211
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.049
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.206
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.340
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.223
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.375
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.410
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.124
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.467
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.660
+        Final mAP@0.5: 0.309, mAP@0.5:0.95: 0.201
+        Final mAP@0.5: 0.309, mAP@0.5:0.95: 0.201
+        Epoch: 140 | mAP@0.5: 0.3094196664085125 | mAP@0.50:0.95: 0.2008188574325598
+        ```
         * 200:
-            ```
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.227
-            Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.344
-            Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.242
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.057
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.236
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.384
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.236
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.391
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.426
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.140
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.488
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.684
-            Final mAP@0.5: 0.344, mAP@0.5:0.95: 0.227
-            Final mAP@0.5: 0.344, mAP@0.5:0.95: 0.227
-            Epoch: 200 | mAP@0.5: 0.344050595596906 | mAP@0.50:0.95: 0.22735681583671746
-            ```
-        * 297:
-            ```
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.275
-            Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.410
-            Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.292
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.074
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.292
-            Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.457
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.258
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.424
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.458
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.160
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.528
-            Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.733
-            Final mAP@0.5: 0.410, mAP@0.5:0.95: 0.275
-            Final mAP@0.5: 0.410, mAP@0.5:0.95: 0.275
-            Epoch: 297 | mAP@0.5: 0.40972973006887153 | mAP@0.50:0.95: 0.27450019373421986
-            ```
+        ```
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.227
+        Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.344
+        Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.242
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.057
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.236
+        Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.384
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.236
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.391
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.426
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.140
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.488
+        Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.684
+        Final mAP@0.5: 0.344, mAP@0.5:0.95: 0.227
+        Final mAP@0.5: 0.344, mAP@0.5:0.95: 0.227
+        Epoch: 200 | mAP@0.5: 0.344050595596906 | mAP@0.50:0.95: 0.22735681583671746
+        ```
